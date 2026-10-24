@@ -3,6 +3,25 @@
 Estas instrucciones se aplican a todo el repositorio. La documentación para
 instalar y ejecutar los proyectos en Windows está en `README.md`.
 
+## Contexto académico vigente
+
+- La adaptación de la Iteración 1 se trabaja en la rama `backend_dev` del
+  repositorio compartido. Consultar primero
+  `docs/contexto_iteracion_1.md` y `docs/plan_adaptacion_iteracion_1.md`.
+- El alcance se limita a entrada, salida, reasignación y consultas operativas del
+  parqueadero. No ampliarlo por funcionalidades heredadas del proyecto de
+  referencia.
+- Las cinco entidades acordadas son Cliente, Vehiculo, Celda, Operador y
+  Estancia. Salida forma parte de Estancia y no se creará una entidad
+  Mensualidad. Antes de cambiar el esquema, contrastar atributos, nombres,
+  longitudes, tipos y restricciones con los diagramas definitivos.
+- Quedan fuera los CRUD administrativos completos, pagos, facturación, tarifas,
+  roles, permisos, administración avanzada de mensualidades y cualquier campo o
+  flujo de novedades del vehículo.
+- El frontend y otros entregables documentales están a cargo del compañero del
+  responsable de backend. Documentar y comunicar cambios de contrato API; no
+  modificar frontend desde una tarea de backend sin coordinación expresa.
+
 ## Estructura
 
 - `backend/app/main.py`: aplicación FastAPI; `GET /health` devuelve HTTP 200 y
@@ -11,12 +30,17 @@ instalar y ejecutar los proyectos en Windows está en `README.md`.
 - `backend/app/config.py`: carga `backend/.env` por ruta absoluta; el entorno tiene prioridad.
 - `backend/app/database.py`: motor SQLAlchemy y sesiones bajo demanda con psycopg.
 - `backend/check_db.py`: comprobación explícita mediante `SELECT 1`, sin DDL.
-- `backend/app/models.py`: Base, Vehiculo, Celda y Operador; tablas en singular y minúsculas.
+- `backend/app/models.py`: Base, Vehiculo, Celda, Operador y Estancia; tablas en
+  singular y minúsculas. Cliente todavía está pendiente de alineación con los
+  diagramas definitivos.
 - `backend/app/schemas/vehiculo.py`: validación Pydantic y contratos de respuesta.
 - `backend/app/routers/vehiculos.py`: rutas CRUD con APIRouter.
 - `backend/app/services/vehiculo.py`: lógica de vehículos, transacciones y errores públicos.
 - `backend/app/schemas/celda.py`, `app/routers/celdas.py` y `app/services/celda.py`:
   CRUD de celdas con código normalizado y tipo libre obligatorio.
+- `backend/app/schemas/estancia.py`, `app/routers/estancias.py` y
+  `app/services/estancia.py`: entrada, salida y consulta individual por placa,
+  con transacciones y errores públicos.
 - `backend/migrations/`: revisiones Alembic; `backend/alembic.ini` reutiliza la configuración privada.
 - `backend/.env.example`: plantilla pública; conservar cualquier `.env` existente y privado.
 - `backend/requirements.txt`: dependencias de ejecución y pruebas con versiones
@@ -26,7 +50,9 @@ instalar y ejecutar los proyectos en Windows está en `README.md`.
 - `frontend/src/app/home/`: bienvenida y estado de salud de la API.
 - `frontend/src/app/vehiculos/`: formulario reactivo y listado paginado de vehículos.
 - `frontend/src/app/celdas/`: gestión de celdas; `CeldasService` reutiliza la base de API.
-- `frontend/src/app/services/api.service.ts`: llamadas HTTP y base de API centralizadas.
+- `frontend/src/app/services/api.service.ts`: token de base API y llamadas de
+  salud/vehículos; los servicios de celdas, operadores y estancias reutilizan
+  ese token.
 - `frontend/src/app/models/vehiculo.ts`: contratos de solicitudes, respuestas y tipos.
 - `frontend/src/styles.css`: estilos globales; estilos de componentes en CSS.
 - `frontend/public/`: recursos estáticos que sí se versionan.
@@ -37,7 +63,10 @@ instalar y ejecutar los proyectos en Windows está en `README.md`.
 
 ## Herramientas y dependencias
 
-- Entorno verificado: Python 3.13.16, Node.js 24.22.0 y npm 11.7.0.
+- El proyecto de referencia se verificó con Python 3.13.16, Node.js 24.22.0 y
+  npm 11.7.0; el responsable de esta adaptación reporta Python 3.12.10. Verificar
+  el entorno propio del clon y no asumir que `.venv` o `.env` de otra carpeta
+  están disponibles.
 - Mantener Node.js en la rama 24 con versión mínima 24.15.0 para Angular 22.
 - Usar exclusivamente `backend/.venv` para instalar paquetes y ejecutar Python
   del proyecto. No instalar dependencias del backend globalmente.
@@ -71,10 +100,11 @@ instalar y ejecutar los proyectos en Windows está en `README.md`.
   del controlador. Verificar PostgreSQL con `backend/check_db.py`; las pruebas
   simuladas no prueban que exista una conexión local real.
 - La pantalla consulta `/health` mediante `HttpClient` al cargarse. El proxy de
-  desarrollo en `frontend/proxy.conf.json` dirige `/health`, `/vehiculos` y
-  `/vehiculos/**` a `127.0.0.1:8000`. La pantalla de gestión usa `/gestion/vehiculos`
-  para no colisionar con las rutas API. Las llamadas pasan por `ApiService`.
-  Mantener rutas relativas y documentar cualquier integración que se añada.
+  desarrollo en `frontend/proxy.conf.json` dirige `/health`, `/vehiculos`,
+  `/celdas`, `/operadores` y `/estancias` (incluidas sus subrutas) a
+  `127.0.0.1:8000`. Las pantallas de gestión usan rutas `/gestion/*` para no
+  colisionar con la API. Mantener rutas relativas y documentar cualquier
+  integración que se añada.
 
 ## Secretos y archivos excluidos
 
@@ -115,13 +145,19 @@ try {
 }
 ```
 
-La prueba actual comprueba `/health` sin iniciar un servidor externo. Starlette
-puede emitir un aviso de deprecación sobre `httpx`; distinguirlo de un fallo.
+La suite ordinaria incluye `/health`, modelos, configuración, contratos y
+servicios sin conexión real; las pruebas PostgreSQL se omiten por defecto.
+Starlette puede emitir un aviso de deprecación sobre `httpx`; distinguirlo de un
+fallo.
 
-Las pruebas de integración de vehículos se habilitan con `RUN_POSTGRES_TESTS=1`
-y requieren `autos_colombia` con la revisión `0001`. Usan rollback exterior y
-savepoints: no crear tablas ni alterar migraciones para probar. Los valores de
-las secuencias pueden avanzar. Ver `backend/README.md` para comandos completos.
+Las pruebas de integración de vehículos, celdas, operadores y estancias se
+habilitan con `RUN_POSTGRES_TESTS=1`. La suite completa, en particular estancias,
+requiere la base local `autos_colombia` en la revisión `0002`. Vehículos, celdas y
+operadores usan transacción exterior/savepoints; las pruebas concurrentes de
+estancias confirman datos y los eliminan por identificadores. No crear tablas ni
+alterar migraciones para probar. Las secuencias pueden avanzar. No habilitar estas
+pruebas ni conectar la base del usuario sin autorización. Ver `backend/README.md`
+para los comandos y revisar sus notas históricas frente al estado actual.
 
 ### Frontend
 
